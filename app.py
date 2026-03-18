@@ -72,8 +72,24 @@ def _parse_keyword(q: str):
         return "and", orig_terms
     return "and", [q]
 
+# ── DB stats ticker ───────────────────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def get_db_stats():
+    from datetime import date
+    today = date.today().isoformat()
+    total_res  = client.table("tenders").select("id", count="exact").execute()
+    live_res   = client.table("tenders").select("id", count="exact").gte("end_date", today).execute()
+    latest_res = client.table("tenders").select("last_seen").order("last_seen", desc=True).limit(1).execute()
+    total   = total_res.count or 0
+    live    = live_res.count or 0
+    expired = total - live
+    last_updated = latest_res.data[0]["last_seen"] if latest_res.data else "—"
+    return total, live, expired, last_updated
+
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.title("📋 Tender Monitor")
+_total, _live, _expired, _last_updated = get_db_stats()
+st.info(f"📥 Total {_total:,} Tenders  |  {_live:,} Live  |  {_expired:,} Expired  |  Last updated: {_last_updated}")
 st.caption("Supports keyword operators: `AND`, `OR`, `+`  — e.g. `pump AND diesel` or `generator OR turbine`")
 
 # Row 1: keyword
