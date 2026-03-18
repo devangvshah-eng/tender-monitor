@@ -230,44 +230,17 @@ if results:
                 f"\U0001f517 {row['Link']}"
             )
         wa_text = "\n\n".join(parts)
-        js_text = json.dumps(wa_text)
-        n_found = len(results)
         n_sel   = len(selected)
 
-        # Header with clickable "WhatsApp" that copies text via execCommand
         with header:
-            components.html(
-                f"""
-                <div style="font-family:'Source Sans Pro',sans-serif;font-size:1rem;padding:2px 0;">
-                  <strong>{n_found} tender(s) found</strong> — check ✅ rows to share on&nbsp;
-                  <a href="#" id="waLink"
-                     onclick="
-                       var ta=document.createElement('textarea');
-                       ta.value={js_text};
-                       ta.style.position='fixed';ta.style.left='-9999px';
-                       document.body.appendChild(ta);ta.select();
-                       document.execCommand('copy');
-                       document.body.removeChild(ta);
-                       this.textContent='✅ Copied!';
-                       var self=this;
-                       setTimeout(function(){{self.textContent='WhatsApp';}},2000);
-                       return false;"
-                     style="color:#25D366;font-weight:bold;text-decoration:underline;cursor:pointer;">
-                    WhatsApp
-                  </a>
-                  <span style="color:#888;font-size:0.85rem;"> ({n_sel} selected)</span>
-                </div>
-                """,
-                height=36,
-            )
+            st.markdown(f"**{len(results)} tender(s) found**, check rows to share on WhatsApp ({n_sel} selected)")
 
-        # Message preview at the bottom
         st.caption("Message preview:")
         st.code(wa_text, language=None)
 
     else:
         with header:
-            st.markdown(f"**{len(results)} tender(s) found** — check ✅ rows to share on WhatsApp")
+            st.markdown(f"**{len(results)} tender(s) found**, check rows to share on WhatsApp")
 
 else:
     st.info("No tenders found. Try adjusting your filters.")
