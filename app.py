@@ -14,6 +14,14 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown("""
+<style>
+/* Hide download button on all tables */
+button[title="Download as CSV"] { display: none !important; }
+[data-testid="stElementToolbarButton"]:has(svg[data-testid="stIconDownload"]) { display: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
 SOURCE_LABEL = {
     "gem":                 "GeM",
     "cppp_global_central": "CPPP Central Global",
@@ -86,6 +94,40 @@ def get_db_stats():
     last_updated = latest_res.data[0]["last_seen"] if latest_res.data else "—"
     return total, live, expired, last_updated
 
+@st.cache_data(ttl=3600)
+def get_source_stats():
+    from datetime import date
+    today = date.today().isoformat()
+    # Fetch all records with just the fields needed for aggregation
+    PAGE = 1000
+    all_data = []
+    offset = 0
+    while True:
+        res = client.table("tenders").select("source, end_date, first_seen, last_seen").range(offset, offset + PAGE - 1).execute()
+        all_data.extend(res.data)
+        if len(res.data) < PAGE:
+            break
+        offset += PAGE
+    df = pd.DataFrame(all_data)
+    if df.empty:
+        return pd.DataFrame()
+    rows = []
+    for src, grp in df.groupby("source"):
+        total   = len(grp)
+        live    = (grp["end_date"] >= today).sum()
+        expired = total - live
+        new     = (grp["first_seen"] == today).sum()
+        last_run = grp["last_seen"].max()
+        rows.append({
+            "Source":           SOURCE_LABEL.get(src, src.upper()),
+            "# Tenders":        total,
+            "# Live":           live,
+            "# Expired":        expired,
+            "# New Today":      new,
+            "Last Run":         last_run,
+        })
+    return pd.DataFrame(rows).sort_values("Source").reset_index(drop=True)
+
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.title("📋 Tender Monitor")
 _total, _live, _expired, _last_updated = get_db_stats()
@@ -124,9 +166,9 @@ with col3:
 # Row 3: dates + limit
 col4, col5, col6 = st.columns([2, 2, 1])
 with col4:
-    date_from = st.date_input("Closing date from", value=None)
+    date_from = st.date_input("End Date from", value=None)
 with col5:
-    date_to = st.date_input("Closing date to", value=None)
+    date_to = st.date_input("End Date to", value=None)
 with col6:
     limit = st.selectbox("Max results", [100, 250, 500, 1000, 5000, 10000], index=2)
 
@@ -262,4 +304,11 @@ else:
     st.info("No tenders found. Try adjusting your filters.")
 
 st.divider()
+
+# ── Source summary table ───────────────────────────────────────────────────────
+st.subheader("Summary by Source")
+src_df = get_source_stats()
+if not src_df.empty:
+    st.dataframe(src_df, use_container_width=True, hide_index=True)
+
 st.caption("Data refreshes daily. Supabase syncs in real-time during each run.")
